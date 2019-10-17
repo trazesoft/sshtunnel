@@ -38,25 +38,54 @@ func (tunnel *SSHTunnel) Start() error {
 		}
 
 		tunnel.logf("accepted connection")
+		tunnel.logf("local port %s", strconv.Itoa(conn.RemoteAddr().(*net.TCPAddr).Port))
 		go tunnel.forward(conn)
 	}
 }
 
+var firstOne bool = false
+var cross chan bool = make(chan bool)
+// var done bool = false
+// var total int = 0
+var serverConn *ssh.Client
+
 func (tunnel *SSHTunnel) forward(localConn net.Conn) {
-	var serverConn *ssh.Client
 	var serverErr interface{}
 
 	var retry int
-	for {
+	if firstOne == false {
 
-		retry ++
-		serverConn, serverErr = ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
-		if serverErr != nil {
-			tunnel.logf("server dial error: %s", serverErr)
-		} else {
-			break
+		firstOne = true
+		for {
+
+			retry ++
+			serverConn, serverErr = ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
+			if serverErr != nil {
+				tunnel.logf("server dial error: %s", serverErr)
+			} else {
+				// done = true
+				/*for i := -1; i <= total; i++ {
+
+					cross <- true		
+				}
+				*/
+				close(cross)
+				break
+			}
+
 		}
+	// } else if done == false {
+	} else if serverConn == nil {
+		//for serverConn == nil || serverErr != nil  {
+				
+			tunnel.logf("Waiting for the bus!")
+			<-cross
+			tunnel.logf("The bus has arrived!")
+
+		//}				
+
 	}
+
 
 	if retry > 1 {
 		tunnel.logf("Retry server: %s", strconv.Itoa(retry))
@@ -71,6 +100,7 @@ func (tunnel *SSHTunnel) forward(localConn net.Conn) {
 	for {
 		retry ++
 		remoteConn, remoteError = serverConn.Dial("tcp", tunnel.Remote.String())
+		// remoteConn, remoteError = serverConn.Dial("tcp", "127.0.0.1:3306")
 		if remoteError != nil {
 			tunnel.logf("remote dial error: %s", remoteError)
 		}else{
@@ -78,7 +108,6 @@ func (tunnel *SSHTunnel) forward(localConn net.Conn) {
 			break
 		}
 	}
-			
 	if retry > 1 {
 		tunnel.logf("Retry remote: %s", strconv.Itoa(retry))
 	}
@@ -130,4 +159,3 @@ func NewSSHTunnel(tunnel string, auth ssh.AuthMethod, destination string, localP
 
 	return sshTunnel
 }
-
