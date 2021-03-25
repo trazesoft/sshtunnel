@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"fmt"
 	// "time"
 	"strconv"
 )
@@ -66,6 +67,7 @@ func createSshConnection(tunnel *SSHTunnel){
 
 			retry ++
 			// c, err := d.dialDNS(ctx, network, server) 
+			fmt.Println("bastion:", tunnel.Server.String())
 			serverConn, serverErr = ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
 			if serverErr != nil {
 				tunnel.logf("server dial error: %s", serverErr)
