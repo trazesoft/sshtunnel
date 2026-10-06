@@ -5,8 +5,8 @@ import (
 	"io"
 	"log"
 	"net"
-	"fmt"
-	// "time"
+	// "fmt"
+	"time"
 	"strconv"
 )
 
@@ -67,10 +67,12 @@ func createSshConnection(tunnel *SSHTunnel){
 
 			retry ++
 			// c, err := d.dialDNS(ctx, network, server) 
-			fmt.Println("bastion:", tunnel.Server.String())
+			// fmt.Println("bastion:", tunnel.Server.String())
 			serverConn, serverErr = ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
 			if serverErr != nil {
-				tunnel.logf("server dial error: %s", serverErr)
+				wait := retryDelay(retry)
+				tunnel.logf("server dial error: %s (reintento %d en %s)", serverErr, retry, wait)
+				time.Sleep(wait)
 			} else {
 				close(workingFlag)
 				retry = 0
@@ -85,15 +87,28 @@ func createSshConnection(tunnel *SSHTunnel){
 	} else if serverConn == nil {
 				
 			
-		tunnel.logf("Waiting for the bus!")
+		// tunnel.logf("Waiting for the bus!")
 		<-workingFlag
-		tunnel.logf("The bus has arrived!")
+		// tunnel.logf("The bus has arrived!")
 
 	}
 
 				
-		tunnel.logf("Loaded finished")
+		// tunnel.logf("Loaded finished")
 }
+// retryDelay waits 1s, 2s, 4s... up to 30s between attempts so a down bastion
+// does not flood the log.
+func retryDelay(retry int) time.Duration {
+	if retry > 6 {
+		return 30 * time.Second
+	}
+	wait := time.Duration(1<<uint(retry-1)) * time.Second
+	if wait > 30*time.Second {
+		return 30 * time.Second
+	}
+	return wait
+}
+
 func (tunnel *SSHTunnel) forward(localConn net.Conn) {
 
 	var retry int
@@ -134,6 +149,7 @@ func (tunnel *SSHTunnel) forward(localConn net.Conn) {
 				createSshConnection(tunnel)
 			}
 			tunnel.logf("remote dial error: %s", remoteError)
+			time.Sleep(retryDelay(retry))
 		}else{
 
 			break
